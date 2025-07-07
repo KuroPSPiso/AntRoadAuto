@@ -29,7 +29,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
-import androidx.annotation.ColorInt;
 import androidx.annotation.RequiresPermission;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -50,7 +49,6 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String CHANNEL_ID = "com.LocShare.Notifications";
     private static final String TAG = "MyBackgroundService";
-    private static final BluetoothAdapter BA = BluetoothAdapter.getDefaultAdapter();
 
     private enum CONNECTION_STATUS {
         DISCONNECTED,
@@ -78,6 +76,11 @@ public class MainActivity extends AppCompatActivity {
 //        }
 //    };
 
+    public void LogMessage(String warn){
+        final TextView tvConStatus = findViewById(R.id.tvConStatus);
+        tvConStatus.setText(warn);
+    }
+
     private void RequestPermissions()
     {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
@@ -104,7 +107,7 @@ public class MainActivity extends AppCompatActivity {
 
         Intent turnOn = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
         startActivityForResult(turnOn, 0);
-        Set<BluetoothDevice> bondedDevicesSet = BA.getBondedDevices();
+        Set<BluetoothDevice> bondedDevicesSet = Common.BA.getBondedDevices();
         pairedDevices = new BluetoothDevice[bondedDevicesSet.size()];
         pairedDevices = bondedDevicesSet.toArray(pairedDevices);
 
@@ -149,16 +152,20 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 if(spDevices.getSelectedItemPosition() == 0) {
                     Toast warnNoDevice = Toast.makeText(mainActivity, "No Device Selected", Toast.LENGTH_LONG);
-                    View view = warnNoDevice.getView();
-                    view.getBackground().setColorFilter(0xfff2d985, PorterDuff.Mode.SRC_IN);
-                    TextView text = (TextView) view.findViewById(android.R.id.message);
-                    /*Here you can do anything with above textview like text.setTextColor(Color.parseColor("#000000"));*/
-                    text.setTextColor(Color.parseColor("#e09d31"));
-                    warnNoDevice.show();
+                    try {
+                        View view = warnNoDevice.getView();
+                        view.getBackground().setColorFilter(0xfff2d985, PorterDuff.Mode.SRC_IN);
+                        TextView text = (TextView) view.findViewById(android.R.id.message);
+                        text.setTextColor(Color.parseColor("#e09d31"));
+                        warnNoDevice.show();
+                    } catch (Exception ex) {
+                        //dunno
+                        Toast.makeText(mainActivity, "No Device Selected", Toast.LENGTH_LONG).show();
+                    }
                     return;
                 }
 
-                connectionStatus = CONNECTION_STATUS.HOSTING;
+                connectionStatus = CONNECTION_STATUS.CONNECTING;
                 tvConStatus.setText(generateConStatus());
 
                 if (ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
@@ -175,9 +182,12 @@ public class MainActivity extends AppCompatActivity {
                     tvConStatus.setText(generateConStatus());
                     return;
                 }
-                btHandler = new BTHandling((MainActivity) mainActivity, BTHandling.BTHANDLING_TYPE.SENDER_CLIENT);
+                btHandler = new BTHandling((MainActivity) mainActivity, BTHandling.BTHANDLING_TYPE.SENDER_CLIENT, pairedDevices[spDevices.getSelectedItemPosition()]);
+
                 getCurrLocationData();
 
+                btnShare.setBackgroundColor(0xFFFF0000);
+                btnReceive.setEnabled(false);
             }
         });
 

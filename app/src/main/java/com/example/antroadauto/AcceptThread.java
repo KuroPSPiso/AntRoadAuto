@@ -15,7 +15,6 @@ import java.util.UUID;
 public class AcceptThread extends Thread {
     private final BluetoothServerSocket mmServerSocket;
     private final BTHandling btHandler;
-    private final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     public AcceptThread(BTHandling argBTHandler) {
@@ -26,10 +25,10 @@ public class AcceptThread extends Thread {
         try {
             // MY_UUID is the app's UUID string, also used by the client code.
             //btHandler.bluetoothDevice.getName()
-            tmp = btHandler.bluetoothAdapter.listenUsingRfcommWithServiceRecord("LocShare", MY_UUID);
-            Toast.makeText(BTHandling.mainActivity, "Ready to Receive", Toast.LENGTH_SHORT).show();
+            tmp = btHandler.bluetoothAdapter.listenUsingRfcommWithServiceRecord(Common.ServiceRecord, Common.MY_UUID);
+            Toast.makeText(this.btHandler.mainActivity, "Ready to Receive", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
-            Toast.makeText(BTHandling.mainActivity, "Socket's listen() method failed:" + e.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this.btHandler.mainActivity, "Socket's listen() method failed:" + e.getMessage(), Toast.LENGTH_LONG).show();
             //Log.e(btHandler.TAG, "Socket's listen() method failed", e);
         }
         mmServerSocket = tmp;
@@ -42,7 +41,7 @@ public class AcceptThread extends Thread {
             try {
                 socket = mmServerSocket.accept();
             } catch (Exception e) {
-                Toast.makeText(BTHandling.mainActivity,"Socket's accept() method failed", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this.btHandler.mainActivity,"Socket's accept() method failed", Toast.LENGTH_SHORT).show();
                 //Toast.makeText(BTHandling.mainActivity,e.getMessage(), Toast.LENGTH_SHORT).show();
                 break;
             }
@@ -50,7 +49,7 @@ public class AcceptThread extends Thread {
             if (socket != null) {
                 // A connection was accepted. Perform work associated with
                 // the connection in a separate thread.
-                //Toast.makeText(BTHandling.mainActivity,"Connection accepted:" + socket.getRemoteDevice().getName(), Toast.LENGTH_SHORT).show();
+                Toast.makeText(this.btHandler.mainActivity,"Connection accepted", Toast.LENGTH_SHORT).show();
                 //manageMyConnectedSocket(socket);
                 //mmServerSocket.close();
                 break;
@@ -65,7 +64,7 @@ public class AcceptThread extends Thread {
                 mmServerSocket.close();
             }
         } catch (Exception e) {
-            Toast.makeText(BTHandling.mainActivity,"Could not close the connect socket: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this.btHandler.mainActivity,"Could not close the connect socket: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 }

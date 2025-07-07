@@ -19,13 +19,14 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.app.ActivityCompat;
 
 public class BTHandling {
-    public static MainActivity mainActivity;
+    public MainActivity mainActivity;
 
     public final String TAG = "BLHandling";
     private BluetoothManager bluetoothManager;
     public AcceptThread acceptThread;
+    public ConnectThread connectThread;
     public final BluetoothAdapter bluetoothAdapter;
-    public BluetoothDevice bluetoothDevice;
+    public BluetoothDevice btDevice;
     private final static int REQUEST_ENABLE_BT = 1;
 
     public enum BTHANDLING_TYPE {
@@ -33,9 +34,20 @@ public class BTHandling {
         SENDER_CLIENT
     }
 
+    public BTHandling(MainActivity argMainActivity, BTHANDLING_TYPE btType, BluetoothDevice argBTDevice) {
+        mainActivity = argMainActivity;
+        this.bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        this.btDevice = argBTDevice;
+        this.handleComms(btType);
+    }
+
     public BTHandling(MainActivity argMainActivity, BTHANDLING_TYPE btType) {
         mainActivity = argMainActivity;
         this.bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        this.handleComms(btType);
+    }
+
+    private void handleComms(BTHANDLING_TYPE btType) {
         if (!bluetoothAdapter.isEnabled()) {
             if (ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
                 Toast.makeText(mainActivity, "No Bluetooth permissions", Toast.LENGTH_LONG).show();
@@ -66,9 +78,17 @@ public class BTHandling {
             activityLauncher.launch(enableBtIntent);
         }
 
-        if (btType == BTHANDLING_TYPE.RECEIVER_SERVER) {
-            this.acceptThread = new AcceptThread(this);
-            acceptThread.start();
+        switch(btType)
+        {
+            case RECEIVER_SERVER:
+                this.acceptThread = new AcceptThread(this);
+                acceptThread.start();
+                return;
+            case SENDER_CLIENT:
+            default:
+                this.connectThread = new ConnectThread(this, btDevice);
+                this.connectThread.start();
+                return;
         }
     }
 }
