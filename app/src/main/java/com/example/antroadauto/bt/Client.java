@@ -12,6 +12,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.widget.Button;
+import android.widget.Spinner;
 import android.widget.Toast;
 
 import androidx.core.app.ActivityCompat;
@@ -58,7 +59,9 @@ public class Client extends Thread {
                    final Button btnReceive = mainActivity.findViewById(R.id.btnReceive);
                    btnReceive.setEnabled(false);
                    final Button btnShare = mainActivity.findViewById(R.id.btnShare);
-                   btnShare.setText("Disconnect from " + socket.getRemoteDevice().getName());
+                   btnShare.setText("Pending");
+                   final Spinner spDevices = mainActivity.findViewById(R.id.spDevices);
+                   spDevices.setEnabled(false);
                }
             });
 
@@ -67,10 +70,8 @@ public class Client extends Thread {
                 @Override
                 public void run() {
                     MainActivity.setConnectionStatus(CONNECTION_STATUS.CONNECTED);
-                    final Button btnReceive = mainActivity.findViewById(R.id.btnReceive);
-                    btnReceive.setEnabled(true);
                     final Button btnShare = mainActivity.findViewById(R.id.btnShare);
-                    btnShare.setText("Share");
+                    btnShare.setText("Disconnect from " + socket.getRemoteDevice().getName());
                 }
             });
         } catch (Exception ex) {
@@ -83,6 +84,8 @@ public class Client extends Thread {
                     btnReceive.setEnabled(true);
                     final Button btnShare = mainActivity.findViewById(R.id.btnShare);
                     btnShare.setText("Share");
+                    final Spinner spDevices = mainActivity.findViewById(R.id.spDevices);
+                    spDevices.setEnabled(true);
                 }
             });
             Toast.makeText(mainActivity, ex.getMessage(), Toast.LENGTH_LONG).show();
@@ -101,8 +104,6 @@ public class Client extends Thread {
         super.interrupt();
 
         mainActivity.runOnUiThread(new Runnable() {
-
-
             @Override
             public void run() {
                 MainActivity.setConnectionStatus(CONNECTION_STATUS.DISCONNECTED);
@@ -110,6 +111,8 @@ public class Client extends Thread {
                 btnReceive.setEnabled(true);
                 final Button btnShare = mainActivity.findViewById(R.id.btnShare);
                 btnShare.setText("Share");
+                final Spinner spDevices = mainActivity.findViewById(R.id.spDevices);
+                spDevices.setEnabled(true);
             }
         });
     }

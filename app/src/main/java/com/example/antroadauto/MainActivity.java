@@ -17,8 +17,10 @@ import android.location.LocationProvider;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
+import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -37,6 +39,8 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.example.antroadauto.bt.Handler;
+import com.example.antroadauto.monitor.CameraPreview;
+import com.example.antroadauto.monitor.CameraStream;
 
 import java.util.Random;
 import java.util.Timer;
@@ -53,6 +57,7 @@ public class MainActivity extends AppCompatActivity {
     public static Activity mainActivity;
 
     private static Handler btHandler;
+    private static CameraStream cameraStream;
 
     private static final double home_lat = 52.10144435;
     private static final double home_lon = 5.04532337;
@@ -113,6 +118,17 @@ public class MainActivity extends AppCompatActivity {
                         1);
             }
         }
+        if (ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(mainActivity, new String[]{Manifest.permission.RECORD_AUDIO}, 1);
+        }
+        if (ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(mainActivity, new String[]{Manifest.permission.CAMERA}, 1);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            if (ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.FOREGROUND_SERVICE_CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(mainActivity, new String[]{Manifest.permission.FOREGROUND_SERVICE_CAMERA}, 1);
+            }
+        }
 
         //Intent turnOn = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
         //startActivityForResult(turnOn, 0);
@@ -160,6 +176,13 @@ public class MainActivity extends AppCompatActivity {
 
     protected static void StartServer() {
         btHandler.startServer();
+        cameraStream = new CameraStream();
+        if (cameraStream.isReady) {
+//            final SurfaceView svCam = new CameraPreview(mainActivity, cameraStream.cam);
+//            FrameLayout preview = (FrameLayout) mainActivity.findViewById(R.id.flCam);
+//            preview.addView(svCam);
+            //cameraStream.Start();
+        }
     }
 
     protected static void StartClient() {
