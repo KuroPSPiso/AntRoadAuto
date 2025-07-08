@@ -125,6 +125,11 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
+        <TextureView
+            android:id="@+id/textureView"
+            android:layout_width="320dp"
+            android:layout_height="240dp"
+            android:layout_gravity="center" />
     </FrameLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -4,12 +4,12 @@ import static android.location.LocationManager.GPS_PROVIDER;
 
 import android.Manifest;
 import android.app.Activity;
-import android.bluetooth.BluetoothAdapter;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
+import android.hardware.camera2.CameraManager;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationManager;
@@ -17,10 +17,8 @@ import android.location.LocationProvider;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
-import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Button;
-import android.widget.FrameLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -39,8 +37,7 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.example.antroadauto.bt.Handler;
-import com.example.antroadauto.monitor.CameraPreview;
-import com.example.antroadauto.monitor.CameraStream;
+import com.example.antroadauto.monitor.Camera2Activity;
 
 import java.util.Random;
 import java.util.Timer;
@@ -57,7 +54,7 @@ public class MainActivity extends AppCompatActivity {
     public static Activity mainActivity;
 
     private static Handler btHandler;
-    private static CameraStream cameraStream;
+    private static Camera2Activity cameraStream;
 
     private static final double home_lat = 52.10144435;
     private static final double home_lon = 5.04532337;
@@ -176,13 +173,17 @@ public class MainActivity extends AppCompatActivity {
 
     protected static void StartServer() {
         btHandler.startServer();
-        cameraStream = new CameraStream();
-        if (cameraStream.isReady) {
-//            final SurfaceView svCam = new CameraPreview(mainActivity, cameraStream.cam);
-//            FrameLayout preview = (FrameLayout) mainActivity.findViewById(R.id.flCam);
-//            preview.addView(svCam);
-            //cameraStream.Start();
+        cameraStream = new Camera2Activity();
+        cameraStream.mTextureView = mainActivity.findViewById(R.id.textureView);
+
+        // Initialize CameraManager
+        cameraStream.mCameraManager = (CameraManager) mainActivity.getSystemService(Context.CAMERA_SERVICE);
+        if (cameraStream.mCameraManager == null) {
+            Toast.makeText(mainActivity, "Camera services not available.", Toast.LENGTH_SHORT).show();
+            cameraStream.finish();
+            return;
         }
+        cameraStream.openCamera();
     }
 
     protected static void StartClient() {
