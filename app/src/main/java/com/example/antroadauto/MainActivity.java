@@ -3,17 +3,13 @@ package com.example.antroadauto;
 import static android.location.LocationManager.GPS_PROVIDER;
 
 import android.Manifest;
-import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
-import android.graphics.PorterDuff;
+import android.graphics.drawable.GradientDrawable;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationManager;
@@ -22,26 +18,27 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.view.View;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
+import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.RequiresPermission;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
-import androidx.core.app.NotificationCompat;
-import androidx.core.app.NotificationManagerCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
-import java.util.ArrayList;
-import java.util.List;
+import com.example.antroadauto.bt.Handler;
+
 import java.util.Random;
-import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -50,73 +47,80 @@ public class MainActivity extends AppCompatActivity {
     private static final String CHANNEL_ID = "com.LocShare.Notifications";
     private static final String TAG = "MyBackgroundService";
 
-    private enum CONNECTION_STATUS {
-        DISCONNECTED,
-        CONNECTED,
-        CONNECTING,
-        HOSTING,
-        FAILED,
-        AWAITING_CONNECTION,
-        STOPPING
-    };
-
     private static CONNECTION_STATUS connectionStatus;
     private static LocationManager locationManager;
     private static Location currLoc;
-    protected static Activity mainActivity;
-    private static BluetoothDevice[] pairedDevices;
-    private static BTHandling btHandler;
+    public static Activity mainActivity;
+
+    private static Handler btHandler;
 
     private static final double home_lat = 52.10144435;
     private static final double home_lon = 5.04532337;
-//    private static final TimerTask timer = new TimerTask() {
-//        @Override
-//        public void run() {
-//            receiveLocationData();
-//        }
-//    };
 
-    public void LogMessage(String warn){
-        final TextView tvConStatus = findViewById(R.id.tvConStatus);
+    public ActivityResultLauncher<Intent> activityResultLauncher = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(),
+        new ActivityResultCallback<ActivityResult>() {
+            @Override
+            public void onActivityResult(ActivityResult result) {
+                if (result.getResultCode() == Activity.RESULT_OK) {
+                    // Bluetooth has been enabled
+                    Toast.makeText(mainActivity, "Bluetooth booting", Toast.LENGTH_LONG).show();
+                    btHandler.initBT();
+                } else {
+                    // Bluetooth was not enabled
+                    Toast.makeText(mainActivity, "Bluetooth not allowed", Toast.LENGTH_LONG).show();
+                }
+            }
+        }
+    );
+
+    private static String generateConStatus(){
+        return connectionStatus.toString();
+    }
+
+    /// Set connection status based on @CONNECTION_STATUS
+    public static void conStatusMessage() {
+        conStatusMessage(generateConStatus());
+    }
+
+    /// Set connection status based on CUSTOM_MESSAGE
+    public static void conStatusMessage(String warn){
+        final TextView tvConStatus = mainActivity.findViewById(R.id.tvConStatus);
         tvConStatus.setText(warn);
     }
 
-    private void RequestPermissions()
-    {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(mainActivity, new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 1);
-        }
+    public static void setConnectionStatus(CONNECTION_STATUS conStatus) {
+        connectionStatus = conStatus;
+        conStatusMessage();
+    }
+
+    private void RequestPermissions() {
         if (ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(mainActivity, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+        }
+        if (ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(mainActivity, new String[]{Manifest.permission.BLUETOOTH}, 1);
         }
         if (ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 ActivityCompat.requestPermissions(mainActivity, new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, 1);
             }
         }
-        if (ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(mainActivity, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN}, // Add BLUETOOTH_SCAN if you also plan to discover
+                        1);
+            }
         }
+
+        //Intent turnOn = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+        //startActivityForResult(turnOn, 0);
     }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         mainActivity = this;
-
-        RequestPermissions();
-
-        Intent turnOn = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-        startActivityForResult(turnOn, 0);
-        Set<BluetoothDevice> bondedDevicesSet = Common.BA.getBondedDevices();
-        pairedDevices = new BluetoothDevice[bondedDevicesSet.size()];
-        pairedDevices = bondedDevicesSet.toArray(pairedDevices);
-
-        List<String> sArrBT = new ArrayList<String>();
-        sArrBT.add("NONE");
-        for(BluetoothDevice bt : pairedDevices) {
-            sArrBT.add(bt.getName());
-        }
-
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
@@ -125,153 +129,156 @@ public class MainActivity extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
-        createNotificationChannel();
+        initUI();
+        RequestPermissions();
+        btHandler = new Handler(this);
+    }
 
+    protected void initUI() {
         final Button btnShare = findViewById(R.id.btnShare);
         final Button btnReceive = findViewById(R.id.btnReceive);
         final TextView tvConStatus = findViewById(R.id.tvConStatus);
         connectionStatus = CONNECTION_STATUS.DISCONNECTED;
-        locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-
-        final Spinner spDevices = findViewById(R.id.spDevices);
-
-        try {
-            ArrayAdapter<String> aaDevices = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, sArrBT);
-            aaDevices.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-            spDevices.setAdapter(aaDevices);
-        }
-        catch (Exception ex){
-            tvConStatus.setText(ex.getMessage());
-        }
-
-        sendNotification("LocSharer",
-                String.format("Location active %s",locationManager.isLocationEnabled()));
+        conStatusMessage();
 
         btnShare.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if(spDevices.getSelectedItemPosition() == 0) {
-                    Toast warnNoDevice = Toast.makeText(mainActivity, "No Device Selected", Toast.LENGTH_LONG);
-                    try {
-                        View view = warnNoDevice.getView();
-                        view.getBackground().setColorFilter(0xfff2d985, PorterDuff.Mode.SRC_IN);
-                        TextView text = (TextView) view.findViewById(android.R.id.message);
-                        text.setTextColor(Color.parseColor("#e09d31"));
-                        warnNoDevice.show();
-                    } catch (Exception ex) {
-                        //dunno
-                        Toast.makeText(mainActivity, "No Device Selected", Toast.LENGTH_LONG).show();
-                    }
-                    return;
-                }
-
-                connectionStatus = CONNECTION_STATUS.CONNECTING;
-                tvConStatus.setText(generateConStatus());
-
-                if (ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                    || ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) && ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED)
-                    || ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED
-                        //&& ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                        ) {
-                    ActivityCompat.requestPermissions(mainActivity, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        ActivityCompat.requestPermissions(mainActivity, new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, 1);
-                    }
-                    ActivityCompat.requestPermissions(mainActivity, new String[]{Manifest.permission.BLUETOOTH}, 1);
-                    connectionStatus = CONNECTION_STATUS.FAILED;
-                    tvConStatus.setText(generateConStatus());
-                    return;
-                }
-                btHandler = new BTHandling((MainActivity) mainActivity, BTHandling.BTHANDLING_TYPE.SENDER_CLIENT, pairedDevices[spDevices.getSelectedItemPosition()]);
-
-                getCurrLocationData();
-
-                btnShare.setBackgroundColor(0xFFFF0000);
-                btnReceive.setEnabled(false);
+                StartClient();
             }
         });
 
         btnReceive.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if(btHandler != null) {
-                    if(btHandler.acceptThread != null){
-                        connectionStatus = CONNECTION_STATUS.STOPPING;
-                        tvConStatus.setText(generateConStatus());
-                        btHandler.acceptThread.interrupt();
-                        btHandler.acceptThread.cancel();
-                        try {
-                            Thread.sleep(300);
-                            connectionStatus = CONNECTION_STATUS.DISCONNECTED;
-                            tvConStatus.setText(generateConStatus());
-                        } catch (InterruptedException e) {
-                            //throw new RuntimeException(e);
-                            connectionStatus = CONNECTION_STATUS.FAILED;
-                            tvConStatus.setText(generateConStatus());
-                        }
-                    }
-                }
-
-                connectionStatus = CONNECTION_STATUS.CONNECTING;
-                tvConStatus.setText(generateConStatus());
-                if (ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                    || ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) && ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED)
-                    || ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED
-                ) {ActivityCompat.requestPermissions(mainActivity, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        ActivityCompat.requestPermissions(mainActivity, new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, 1);
-                    }
-                    ActivityCompat.requestPermissions(mainActivity, new String[]{Manifest.permission.BLUETOOTH}, 1);
-                    connectionStatus = CONNECTION_STATUS.FAILED;
-                    tvConStatus.setText(generateConStatus());
-                    return;
-                }
-
-                connectionStatus = CONNECTION_STATUS.AWAITING_CONNECTION;
-                tvConStatus.setText(generateConStatus());
-
-                btHandler = new BTHandling((MainActivity) mainActivity, BTHandling.BTHANDLING_TYPE.RECEIVER_SERVER);
-                receiveLocationData();
-                btnShare.setEnabled(false);
-                btnReceive.setBackgroundColor(0xFFFF0000);
-                //TODO: DISABLE RECEIVE
+                StartServer();
             }
         });
+
+        initLocation();
     }
 
-    private void createNotificationChannel() {
-        // Create the NotificationChannel, but only on API 26+ because
-        // the NotificationChannel class is not in the Support Library.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            CharSequence name = getString(R.string.channel_name);
-            String description = getString(R.string.channel_description);
-            int importance = NotificationManager.IMPORTANCE_DEFAULT;
-            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
-            channel.setDescription(description);
-            // Register the channel with the system; you can't change the importance
-            // or other notification behaviors after this.
-            NotificationManager notificationManager = getSystemService(NotificationManager.class);
-            notificationManager.createNotificationChannel(channel);
+    protected static void StartServer() {
+        btHandler.startServer();
+    }
+
+    protected static void StartClient() {
+        final Spinner spDevices = mainActivity.findViewById(R.id.spDevices);
+        if(spDevices.getSelectedItemPosition() == 0) {
+            Toast.makeText(mainActivity,"Please first select a device below", Toast.LENGTH_LONG).show();
+
+            GradientDrawable borderDrawable = new GradientDrawable();
+            borderDrawable.setShape(GradientDrawable.RECTANGLE);
+            borderDrawable.setColor(Color.TRANSPARENT);
+            borderDrawable.setStroke(3, Color.YELLOW);
+            borderDrawable.setCornerRadius(8f * mainActivity.getResources().getDisplayMetrics().density);
+            spDevices.setBackground(borderDrawable);
+            return;
+        } else {
+            final Spinner emptySpinner = new Spinner(mainActivity);
+            spDevices.setBackground(emptySpinner.getBackground());
         }
+
+        btHandler.startClient(spDevices.getSelectedItemPosition() - 1);
     }
 
-    @SuppressLint("MissingPermission")
-    private void sendNotification(String title, String message)
-    {
-        //RemoteViews contentView = new RemoteViews(getPackageName(), R.layout.class);
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle(title)
-                .setContentText(message)
-                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                //.setSmallIcon(R.drawable.) // Notification icon
-                //.setContent(contentView) // Custom notification content
-                //.setContentTitle("Hello") // Title displayed in the notification
-                //.setContentText("Welcome to GeeksforGeeks!!") // Text displayed in the notification
-                //.setContentIntent(pendingIntent) // Pending intent triggered when tapped
-                .setAutoCancel(true); // Dismiss notification when tapped
-        NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
-        //notificationManager.notify(1234, builder.build());
+    protected void initLocation() {
+        locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+
+        //sendNotification("AntRoadAuto", String.format("Location active %s", locationManager.isLocationEnabled()));
     }
+
+//        btnShare.setOnClickListener(new View.OnClickListener() {
+//            @Override
+//            public void onClick(View v) {
+//                if(spDevices.getSelectedItemPosition() == 0) {
+//                    Toast warnNoDevice = Toast.makeText(mainActivity, "No Device Selected", Toast.LENGTH_LONG);
+//                    try {
+//                        View view = warnNoDevice.getView();
+//                        view.getBackground().setColorFilter(0xfff2d985, PorterDuff.Mode.SRC_IN);
+//                        TextView text = (TextView) view.findViewById(android.R.id.message);
+//                        text.setTextColor(Color.parseColor("#e09d31"));
+//                        warnNoDevice.show();
+//                    } catch (Exception ex) {
+//                        //dunno
+//                        Toast.makeText(mainActivity, "No Device Selected", Toast.LENGTH_LONG).show();
+//                    }
+//                    return;
+//                }
+//
+//                connectionStatus = CONNECTION_STATUS.CONNECTING;
+//                tvConStatus.setText(generateConStatus());
+//
+//                if (ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+//                    || ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) && ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED)
+//                    || ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED
+//                        //&& ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
+//                        ) {
+//                    ActivityCompat.requestPermissions(mainActivity, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+//                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+//                        ActivityCompat.requestPermissions(mainActivity, new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, 1);
+//                    }
+//                    ActivityCompat.requestPermissions(mainActivity, new String[]{Manifest.permission.BLUETOOTH}, 1);
+//                    connectionStatus = CONNECTION_STATUS.FAILED;
+//                    tvConStatus.setText(generateConStatus());
+//                    return;
+//                }
+//                btHandler = new BTHandling((MainActivity) mainActivity, BTHandling.BTHANDLING_TYPE.SENDER_CLIENT, pairedDevices[spDevices.getSelectedItemPosition()]);
+//
+//                getCurrLocationData();
+//
+//                btnShare.setBackgroundColor(0xFFFF0000);
+//                btnReceive.setEnabled(false);
+//            }
+//        });
+//
+//        btnReceive.setOnClickListener(new View.OnClickListener() {
+//            @Override
+//            public void onClick(View v) {
+//                if(btHandler != null) {
+//                    if(btHandler.acceptThread != null){
+//                        connectionStatus = CONNECTION_STATUS.STOPPING;
+//                        tvConStatus.setText(generateConStatus());
+//                        btHandler.acceptThread.interrupt();
+//                        btHandler.acceptThread.cancel();
+//                        try {
+//                            Thread.sleep(300);
+//                            connectionStatus = CONNECTION_STATUS.DISCONNECTED;
+//                            tvConStatus.setText(generateConStatus());
+//                        } catch (InterruptedException e) {
+//                            //throw new RuntimeException(e);
+//                            connectionStatus = CONNECTION_STATUS.FAILED;
+//                            tvConStatus.setText(generateConStatus());
+//                        }
+//                    }
+//                }
+//
+//                connectionStatus = CONNECTION_STATUS.CONNECTING;
+//                tvConStatus.setText(generateConStatus());
+//                if (ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+//                    || ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) && ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED)
+//                    || ActivityCompat.checkSelfPermission(mainActivity, Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED
+//                ) {ActivityCompat.requestPermissions(mainActivity, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+//                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+//                        ActivityCompat.requestPermissions(mainActivity, new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, 1);
+//                    }
+//                    ActivityCompat.requestPermissions(mainActivity, new String[]{Manifest.permission.BLUETOOTH}, 1);
+//                    connectionStatus = CONNECTION_STATUS.FAILED;
+//                    tvConStatus.setText(generateConStatus());
+//                    return;
+//                }
+//
+//                connectionStatus = CONNECTION_STATUS.AWAITING_CONNECTION;
+//                tvConStatus.setText(generateConStatus());
+//
+//                btHandler = new BTHandling((MainActivity) mainActivity, BTHandling.BTHANDLING_TYPE.RECEIVER_SERVER);
+//                receiveLocationData();
+//                btnShare.setEnabled(false);
+//                btnReceive.setBackgroundColor(0xFFFF0000);
+//                //TODO: DISABLE RECEIVE
+//            }
+//        });
+//    }
 
     private void writeLocText(double lat, double lon)
     {
@@ -378,7 +385,5 @@ public class MainActivity extends AppCompatActivity {
         //locationManager.setTestProviderLocation(GPS_PROVIDER, loc);
     }
 
-    private String generateConStatus(){
-        return connectionStatus.toString();
-    }
+
 }
