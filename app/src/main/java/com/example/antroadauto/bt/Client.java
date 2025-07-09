@@ -10,6 +10,7 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.location.Location;
 import android.os.Build;
 import android.widget.Button;
 import android.widget.Spinner;
@@ -115,5 +116,9 @@ public class Client extends Thread {
                 spDevices.setEnabled(true);
             }
         });
+    }
+
+    public void sendLocationMessage(Location loc){
+
     }
 }
